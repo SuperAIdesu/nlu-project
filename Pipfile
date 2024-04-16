@@ -16,6 +16,8 @@ jupyter = "*"
 torch = {version = "==2.2.0", index = "downloadpytorch"}
 tokenizers = "*"
 transformers = "*"
+datasets = "*"
+openai = "*"
 
 [dev-packages]
 
