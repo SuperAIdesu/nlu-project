@@ -58,6 +58,6 @@ if __name__ == "__main__":
     parser.add_argument("--split", help="Dataset split to use, options: full, forget01, forget05, forget10", default="full")
     args = parser.parse_args()
 
-    dataset = load_dataset("locuslab/TOFU", args.split)["train"].select(range(4))
+    dataset = load_dataset("locuslab/TOFU", args.split)["train"]
     dataset = dataset.map(add_category)
     dataset.to_csv(f"data/tofu_{args.split}.csv")
