@@ -45,7 +45,13 @@ def get_category(question):
       ]
     )
 
-    return completion.choices[0].message.content
+    answer = completion.choices[0].message.content
+    answer = answer.strip().split("\n")[-1].split(".")[0]
+    if answer in QUESTION_CATEGORIES:
+        return answer
+    else:
+        return "Unknown"
+
 
 def add_category(example):
     question = example["question"]

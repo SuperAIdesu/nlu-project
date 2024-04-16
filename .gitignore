@@ -1,4 +1,6 @@
-data/
+data/*
+!data/tofu_forget01.csv
+!data/tofu_forget10.csv
 model_checkpoints/
 outputs/
 
