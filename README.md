@@ -1,5 +1,7 @@
-# nlu-project
+# Selective Memory Erasure: A Study of In-Context Unlearning in LLMs
 Project for DS-GA 1012 Natural Language Understanding and Computational Semantics
+
+<img src="assets/intro.png">
 
 ## Managing Python packages
 
