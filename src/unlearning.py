@@ -53,9 +53,11 @@ def create_prompt(author_name, question_category, llm_response):
     Returns:
     - prompt (str): Post-processing guardrail prompt.
     """
-    question_descr = ques_category_to_descr[question_category]
-    
-    prefix = f"### Instruction\nDoes the following input contain information about {author_name}'s {question_descr}? Output a single word (yes or no).\n\n"
+    if question_category == "Unknown":
+        prefix = prefix = f"### Instruction\nDoes the following input contain any information related to {author_name}? Output a single word (yes or no).\n\n"
+    else:
+        question_descr = ques_category_to_descr[question_category]
+        prefix = f"### Instruction\nDoes the following input contain information about {author_name}'s {question_descr}? Output a single word (yes or no).\n\n"
     response_to_eval = f"### Input\n{llm_response}\n\n"
     answer_prefix = f"### Answer\n"
     
@@ -128,6 +130,22 @@ def get_unlearned_response(model, tokenizer, author_name, question_category, unf
     return final_response
 
 
+def create_retain_prompts_df(forget_df, retain_df):
+    """
+    To prepare the retain prompts, we use the author & category from forget_df and the response from retain_df
+
+    Args:
+    - forget_df (pd.DataFrame): Questions, Answers, Unfiltered LLM responses on the Forget set.
+    - retain_df (pd.DataFrame): Questions, Answers, Unfiltered LLM responses on the Retain set.
+
+    Returns:
+    - retain_prompts_df (pd.DataFrame): Questions, Answers, Responses from Retain Set, Authors and Question Category from Forget set
+    """
+    retain_prompts_df = retain_df.copy()
+    retain_prompts_df[["author", "category"]] = forget_df[["author", "category"]]
+    return retain_prompts_df
+
+
 def main():
     # Read data
     forget_df = pd.read_csv("data/forget10_with_responses.csv")
@@ -136,13 +154,24 @@ def main():
     # Init model
     model, tokenizer = init_model()
 
-    # Get LLM (post-process) guardrail response
+    # Forget Set - Get LLM (post-process) guardrail response
     forget_df["unlearned_response"] = forget_df.apply(lambda row: get_unlearned_response(
                                                                         model, tokenizer
                                                                         row["author"],
                                                                         row["category"],
                                                                         row["response"]
                                                                             ), axis=1)
+    # Retain Set - Get LLM (post-process) guardrail response
+    retain_prompts_df = create_retain_prompts_df(forget_df, retain_df)
+    retain_prompts_df["unlearned_response"] = retain_prompts_df.apply(lambda row: get_unlearned_response(
+                                                                        model, tokenizer
+                                                                        row["author"],
+                                                                        row["category"],
+                                                                        row["response"]
+                                                                            ), axis=1)
+    # Export Data                                                                            
+    forget_df.to_csv("data/forget10_unlearned.csv", index=False)
+    retain_unlearn_df.to_csv("data/retain90_unlearned.csv", index=False)
 
 if __name__ == "__main__":
     main()
