@@ -34,7 +34,7 @@ def map_facts_to_forget(forget_df, ques_category_to_descr):
 
 def prepare_prompts(data_df, fact_map):
     """ Prepare prompts using the fact map. """
-    prefix = "### Instruction\nAnswer without the following knowledge,"
+    prefix = "### Instruction\nAnswer without the following knowledge by outputting 'I'm sorry, I cannot answer that.':"
     answer_prefix = "### Answer\n"
 
     prompts = []
