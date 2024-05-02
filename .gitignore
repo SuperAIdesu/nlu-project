@@ -1,7 +1,9 @@
 data/*
+!data/prefix_responses
+!data/forget10_with_responses.csv
+!data/retain90_with_responses.csv
 !data/tofu_forget01.csv
 !data/tofu_forget10.csv
-!data/prefix_responses
 model_checkpoints/
 outputs/
 
