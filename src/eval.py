@@ -1,12 +1,17 @@
 import pandas as pd
 from rouge_score import rouge_scorer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 
 class Evaluation:
     """ A class to evaluate unlearning and utility preservation """
     
-    def __init__(self):
+    def __init__(self, access_token):
         """ Initialize an evaluation object """
-        pass
+        self.access_token = access_token
+        self.llm_setup = False
+        self.model = None
+        self.tokenizer = None
     
     def _clean_model_response(self, response_df):
         """
@@ -38,6 +43,37 @@ class Evaluation:
         scores = scorer.score(ground_truth, predicted)
         rougeL_recall = scores["rougeL"].recall
         return rougeL_recall
+
+    def _get_llm_evaluation(self, ground_truth, predicted):
+        """
+        Get ROUGE-l recall score.
+        
+        Args:
+        - ground_truth (str): Ground truth answer.
+        - predicted (str): Model generated answer.
+
+        Returns:
+        - llm_response (str): LLM evaluation of similarity for the example.
+        """
+        instruction = '### Instruction\nAssess whether the two sentences below are the same in meaning. Output a single word (yes or no).\n\n'
+        original_answer = f'\n### Sentence 1\n{ground_truth}'
+        generated_answer = f'\n### Sentence 2\n{predicted}'
+        output = '\n### Output\n'
+    
+        # Construct the full prompt
+        prompt = instruction + original_answer + generated_answer + output
+        
+        inputs = self.tokenizer(prompt, padding=True, truncation=True, max_length=512, return_tensors="pt").to(device)
+        num_input_tokens = inputs["input_ids"].shape[1]
+        with torch.no_grad():
+            generate_ids = self.model.generate(inputs.input_ids,
+                                          max_length = num_input_tokens + ans_length, # Generate input tokens + ans_length
+                                          do_sample = False,
+                                          temperature = 0 # Default=1!
+                                         ) 
+        generate_ids = generate_ids[:, num_input_tokens:] # Filter output response
+        response = self.tokenizer.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
+        return response
 
     def get_forget_accuracy(self, response_df, refusal_response):
         """
@@ -80,6 +116,22 @@ class Evaluation:
                                                                 row['answer'], row['unlearned_response']),
                                                             axis=1)
             matches = response_df[response_df["rouge_scores"] >= rouge_recall_cutoff]
+        elif method == 'llm':
+            if not self.llm_setup:
+                device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
+                model_name = "meta-llama/Meta-Llama-3-8B-Instruct"
+                
+                self.tokenizer = AutoTokenizer.from_pretrained(model_name, token=access_token)
+                self.model = AutoModelForCausalLM.from_pretrained(model_name, token=access_token)
+                self.model.to(device)
+                self.model.eval()
+
+                self.llm_setup = True
+                
+            response_df['llm_eval'] = response_df.apply(lambda row: self._get_llm_evaluation(
+                                                                row['answer'], row['unlearned_response']),
+                                                            axis=1)
+            matches = response_df[response_df["llm_eval"] == 'yes']
         else:
             raise NotImplementedError("Yet to implement other methods!")
         return len(matches)*1.0/len(response_df)
