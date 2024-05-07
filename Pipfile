@@ -18,6 +18,7 @@ tokenizers = "*"
 transformers = "*"
 datasets = "*"
 openai = "*"
+together = "*"
 
 [dev-packages]
 
