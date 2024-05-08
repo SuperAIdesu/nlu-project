@@ -20,6 +20,7 @@ datasets = "*"
 openai = "*"
 together = "*"
 rouge-score = "*"
+seaborn = "*"
 
 [dev-packages]
 
