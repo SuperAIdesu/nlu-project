@@ -6,7 +6,7 @@ import torch
 class Evaluation:
     """ A class to evaluate unlearning and utility preservation """
     
-    def __init__(self, access_token):
+    def __init__(self, access_token=None):
         """ Initialize an evaluation object """
         self.access_token = access_token
         self.llm_setup = False

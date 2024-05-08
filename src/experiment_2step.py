@@ -64,7 +64,7 @@ def gen_document_item(author: str, category: str) -> str:
     return f"{author}'s {CATEGORY_TO_DESCRIPTION[category]}"
 
 
-def run_forget(df: pd.DataFrame, haystack: int, index: int = 0) -> pd.DataFrame:
+def run_forget(df: pd.DataFrame, haystack: int, index: int = 0) -> list[int]:
 
     result = []
     
@@ -87,14 +87,20 @@ def run_forget(df: pd.DataFrame, haystack: int, index: int = 0) -> pd.DataFrame:
     return result
 
 
-def run_retain(df: pd.DataFrame, haystack: int, index: int = 0) -> pd.DataFrame:
+def run_retain(df: pd.DataFrame, haystack: int, index: int = 0) -> list[int]:
 
     result = []
-    assert haystack == 1, "Haystack must be 1 for retain set"
     
     for i, row in tqdm(df.iterrows(), total=len(df)):
-        fact = gen_document_item(row["author"], row["category"])
-        prompt = guardrail_prompt_single(row["retain_answer"], fact)
+
+        if haystack == 1:
+            fact = gen_document_item(row["author"], row["category"])
+            prompt = guardrail_prompt_single(row["retain_answer"], fact)
+        else:
+            additional_rows = df.drop(i).sample(n=haystack-1, random_state=rng)
+            facts = [gen_document_item(row["author"], row["category"]) for _, row in additional_rows.iterrows()]
+            facts.insert(index, gen_document_item(row["author"], row["category"]))
+            prompt = guardrail_prompt_multi(row["retain_answer"], facts)
         
         response = call_api(prompt)
         if response == "yes":
@@ -105,12 +111,37 @@ def run_retain(df: pd.DataFrame, haystack: int, index: int = 0) -> pd.DataFrame:
     return result
 
 
+def run_multi_retain(forget: pd.DataFrame, retain: pd.DataFrame, haystack: int, index: int = 0) -> list[int]:
+    result = []
+    
+    for i, row in tqdm(forget.iterrows(), total=len(forget)):
+
+        if haystack == 1:
+            fact = gen_document_item(row["author"], row["category"])
+            sampled_retain_row = retain.sample(n=1, random_state=rng)
+            prompt = guardrail_prompt_single(sampled_retain_row["response"], fact)
+        else:
+            additional_rows = forget.drop(i).sample(n=haystack-1, random_state=rng)
+            facts = [gen_document_item(row["author"], row["category"]) for _, row in additional_rows.iterrows()]
+            facts.insert(index, gen_document_item(row["author"], row["category"]))
+            sampled_retain_row = retain.sample(n=1, random_state=rng)
+            prompt = guardrail_prompt_multi(sampled_retain_row["response"], facts)
+        
+        response = call_api(prompt)
+        if response == "yes":
+            result.append(1)
+        else:
+            result.append(0)
+    
+    return result
+
 def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--haystack", type=int, default=1, help="Number of facts to forget")
     parser.add_argument("--index", type=int, default=0, help="Index of the fact to forget")
     parser.add_argument("--run_retain", action="store_true", help="Run on retain set (experiment 1)")
+    parser.add_argument("--multi_retain_only", action="store_true", help="Only test the retain performance for experiment 2")
     args = parser.parse_args()
 
     forget_df = pd.read_csv("data/forget10_with_responses.csv")
@@ -121,19 +152,28 @@ def main():
     retain_same_category = retain_same_category[retain_same_category["category"] != "Unknown"]
     retain_random = pd.read_csv("data/retain_random.csv")
     retain_random = retain_random[retain_random["category"] != "Unknown"]
+    retain_90set = pd.read_csv("data/retain90_with_responses.csv")
 
     final_output = pd.DataFrame()
 
-    print("Running on forget set")
-    final_output["forget"] = run_forget(forget_df, args.haystack, args.index)
+    if not args.multi_retain_only:
+        print("Running on forget set")
+        final_output["forget"] = run_forget(forget_df, args.haystack, args.index)
 
-    if args.run_retain:
+    if args.run_retain and not args.multi_retain_only:
         print("Running on retain set")
         final_output["retain_author"] = run_retain(retain_same_author, args.haystack, args.index)
         final_output["retain_category"] = run_retain(retain_same_category, args.haystack, args.index)
         final_output["retain_random"] = run_retain(retain_random, args.haystack, args.index)
     
-    final_output.to_csv(f"outputs/experiment_2step_n{args.haystack}_i{args.index}.csv", index=False)
+    if args.multi_retain_only:
+        print("Testing multi-fact retain performance")
+        final_output["multi_retain90"] = run_multi_retain(forget_df, retain_90set, args.haystack, args.index)
+
+    if args.multi_retain_only:
+        final_output.to_csv(f"outputs/experiment_2step_n{args.haystack}_i{args.index}_retain.csv", index=False)
+    else:
+        final_output.to_csv(f"outputs/experiment_2step_n{args.haystack}_i{args.index}.csv", index=False)
 
     
 if __name__ == "__main__":

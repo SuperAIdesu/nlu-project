@@ -19,6 +19,7 @@ transformers = "*"
 datasets = "*"
 openai = "*"
 together = "*"
+rouge-score = "*"
 
 [dev-packages]
 

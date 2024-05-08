@@ -1,7 +1,7 @@
-let haystack = [3, 3, 3, 5, 5, 5, 7, 7, 7, 9, 9, 9]
-let indices = [0, 1, 2, 0, 2, 4, 0, 3, 6, 0, 4, 8]
+let haystack = [5, 5, 5, 9, 9, 9, 15, 15, 15, 21, 21, 21]
+let indices = [0, 2, 4, 0, 4, 8, 0, 7, 14, 0, 10, 20]
 
 
 $haystack | enumerate | each {
-    |h| python src/experiment_2step.py --haystack $h.item --index ($indices | get $h.index)
+    |h| python src/experiment_2step.py --haystack $h.item --index ($indices | get $h.index) --multi_retain_only
 }
