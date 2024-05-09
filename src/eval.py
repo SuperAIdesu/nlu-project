@@ -12,6 +12,8 @@ class Evaluation:
         self.llm_setup = False
         self.model = None
         self.tokenizer = None
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
+
     
     def _clean_model_response(self, response_df):
         """
@@ -63,11 +65,14 @@ class Evaluation:
         # Construct the full prompt
         prompt = instruction + original_answer + generated_answer + output
         
-        inputs = self.tokenizer(prompt, padding=True, truncation=True, max_length=512, return_tensors="pt").to(device)
+        inputs = self.tokenizer(prompt, padding=True, truncation=True, max_length=512, return_tensors="pt").to(self.device)
         num_input_tokens = inputs["input_ids"].shape[1]
+        attention_mask = inputs["attention_mask"].to(self.device)
         with torch.no_grad():
             generate_ids = self.model.generate(inputs.input_ids,
-                                          max_length = num_input_tokens + ans_length, # Generate input tokens + ans_length
+                                          attention_mask=attention_mask,
+                                          max_length = num_input_tokens + 1, # Generate input tokens + ans_length
+                                          pad_token_id=self.tokenizer.pad_token_id,
                                           do_sample = False,
                                           temperature = 0 # Default=1!
                                          ) 
@@ -118,13 +123,14 @@ class Evaluation:
             matches = response_df[response_df["rouge_scores"] >= rouge_recall_cutoff]
         elif method == 'llm':
             if not self.llm_setup:
-                device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
+                # device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
                 model_name = "meta-llama/Meta-Llama-3-8B-Instruct"
                 
-                self.tokenizer = AutoTokenizer.from_pretrained(model_name, token=access_token)
-                self.model = AutoModelForCausalLM.from_pretrained(model_name, token=access_token)
-                self.model.to(device)
+                self.tokenizer = AutoTokenizer.from_pretrained(model_name, token=self.access_token)
+                self.model = AutoModelForCausalLM.from_pretrained(model_name, token=self.access_token)
+                self.model.to(self.device)
                 self.model.eval()
+                self.tokenizer.pad_token = self.tokenizer.eos_token
 
                 self.llm_setup = True
                 
