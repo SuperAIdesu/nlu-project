@@ -12,13 +12,24 @@ def init_model():
     model.eval()
     return model, tokenizer, device
 
-def load_data(forget_path, retain_path):
+def load_data(forget_path, retain90_path, retain_author_same_path, retain_category_same_path, retain_random_path):
     """ Load and clean the data. """
     forget_df = pd.read_csv(forget_path)
-    retain_df = pd.read_csv(retain_path)
+    retain90_df = pd.read_csv(retain90_path)
+    retain_author_same_df = pd.read_csv(retain_author_same_path)
+    retain_category_same_df = pd.read_csv(retain_category_same_path)
+    retain_random_df = pd.read_csv(retain_random_path)
+
     forget_df.drop(columns=['response'], inplace=True)
-    retain_df.drop(columns=['response'], inplace=True)
-    return forget_df, retain_df
+    retain90_df.drop(columns=['response'], inplace=True)
+    retain_author_same_df.drop(columns=['response', 'question', 'answer'], inplace=True)
+    retain_author_same_df.rename(columns={'retain_question': 'question'}, inplace=True)
+    retain_category_same_df.drop(columns=['response', 'question', 'answer'], inplace=True)
+    retain_category_same_df.rename(columns={'retain_question': 'question'}, inplace=True)
+    retain_random_df.drop(columns=['response', 'question', 'answer'], inplace=True)
+    retain_random_df.rename(columns={'retain_question': 'question'}, inplace=True)
+    
+    return forget_df, retain90_df, retain_author_same_df, retain_category_same_df, retain_random_df
 
 def map_facts_to_forget(forget_df, ques_category_to_descr):
     """ Create a map of facts to forget based on author and category. """
@@ -60,14 +71,17 @@ def generate_responses(tokenizer, model, device, prompts):
 def main():
     """ Main function to orchestrate data loading, prompt preparation, and response generation. """
     forget_path = 'data/forget10_with_responses.csv'
-    retain_path = 'data/retain90_with_responses.csv'
+    retain90_path = 'data/retain90_with_responses.csv'
+    retain_author_same_path = 'data/retain_author_same.csv'
+    retain_category_same_path = 'data/retain_category_same.csv'
+    retain_random_path = 'data/retain_random.csv'
 
     model, tokenizer, device = init_model()
-    forget_df, retain_df = load_data(forget_path, retain_path)
+    forget_df, retain90_df, retain_author_same_df, retain_category_same_df, retain_random_df = load_data(forget_path, retain90_path, retain_author_same_path, retain_category_same_path, retain_random_path)
 
     # Ensuring retain_df has the necessary author and category data from forget_df
-    retain_df['author'] = forget_df['author']
-    retain_df['category'] = forget_df['category']
+    retain90_df['author'] = forget_df['author']
+    retain90_df['category'] = forget_df['category']
 
     ques_category_to_descr = {
         "Personal": "personal life, such as their name, gender, or birth place",
@@ -85,16 +99,28 @@ def main():
 
     # Prepare prompts for both datasets using the mapped facts
     forget_prompts = prepare_prompts(forget_df, fact_map)
-    retain_prompts = prepare_prompts(retain_df, fact_map)
+    retain90_prompts = prepare_prompts(retain90_df, fact_map)
+    retain_author_same_prompts = prepare_prompts(retain_author_same_df, fact_map)
+    retain_category_same_prompts = prepare_prompts(retain_category_same_df, fact_map)
+    retain_random_prompts = prepare_prompts(retain_random_df, fact_map)
 
     # Generate responses
     forget_df['prefix_response'] = generate_responses(tokenizer, model, device, forget_prompts)
-    retain_df['prefix_response'] = generate_responses(tokenizer, model, device, retain_prompts)
+    retain90_df['prefix_response'] = generate_responses(tokenizer, model, device, retain90_prompts)
+    retain_author_same_df['prefix_response'] = generate_responses(tokenizer, model, device, retain_author_same_prompts)
+    retain_category_same_df['prefix_response'] = generate_responses(tokenizer, model, device, retain_category_same_prompts)
+    retain_random_df['prefix_response'] = generate_responses(tokenizer, model, device, retain_random_prompts)
 
     forget_df.to_csv('data/forget10_with_prefix_responses.csv', index=True)
-    retain_df.to_csv('data/retain90_with_prefix_responses.csv', index=True)
+    retain90_df.to_csv('data/retain90_with_prefix_responses.csv', index=True)
+    retain_author_same_df.to_csv('data/retain_author_same_with_prefix_responses.csv', index=True)
+    retain_category_same_df.to_csv('data/retain_category_same_with_prefix_responses.csv', index=True)
+    retain_random_df.to_csv('data/retain_random_with_prefix_responses.csv', index=True)
+
 
     print("Updated DataFrames are saved.")
 
 if __name__ == "__main__":
     main()
+
+
